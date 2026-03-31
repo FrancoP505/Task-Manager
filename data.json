@@ -1,0 +1,81 @@
+{
+  "Categorias": [
+    {
+      "id": 1,
+      "name": "Trabajo"
+    },
+    {
+      "id": 2,
+      "name": "Personal"
+    },
+    {
+      "id": 3,
+      "name": "Compras"
+    }
+  ],
+  "Tareas": [
+    {
+      "id": 1,
+      "Descripcion": "Completar informe de proyecto",
+      "Completado": true,
+      "Prioridad": 3,
+      "creado_at": "2026-04-01",
+      "fecha_de_expiracion": "2026-04-15",
+      "category_id": 1
+    },
+    {
+      "id": 2,
+      "Descripcion": "Agendar encuentro de equipo",
+      "Completado": true,
+      "Prioridad": 2,
+      "creado_at": "2026-04-01",
+      "fecha_de_expiracion": "2026-04-10",
+      "category_id": 1
+    },
+    {
+      "id": 3,
+      "Descripcion": "Comprar comestibles",
+      "Completado": false,
+      "Prioridad": 1,
+      "creado_at": "2026-03-25",
+      "fecha_de_expiracion": "2026-03-30",
+      "category_id": 3
+    },
+    {
+      "id": 4,
+      "Descripcion": "Clase de gimnasio",
+      "Completado": false,
+      "Prioridad": 2,
+      "creado_at": "2026-03-28",
+      "fecha_de_expiracion": "2026-04-01",
+      "category_id": 2
+    },
+    {
+      "id": 5,
+      "Descripcion": "Pagar servicio de luz",
+      "Completado": false,
+      "Prioridad": 3,
+      "creado_at": "2026-03-20",
+      "fecha_de_expiracion": "2026-03-25",
+      "category_id": 2
+    },
+    {
+      "id": 6,
+      "Descripcion": "Realizar un gestor de tareas",
+      "Completado": false,
+      "Prioridad": 3,
+      "creado_at": "2026-03-31",
+      "fecha_de_expiracion": "2025-03-31",
+      "category_id": 1
+    },
+    {
+      "id": 7,
+      "Descripcion": "Hacer mandados",
+      "Completado": false,
+      "Prioridad": 2,
+      "creado_at": "2026-03-31",
+      "fecha_de_expiracion": "2026-04-02",
+      "category_id": 3
+    }
+  ]
+}
