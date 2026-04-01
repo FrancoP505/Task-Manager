@@ -4,15 +4,23 @@ from tkinter import *
 from tkinter import ttk, messagebox
 from datetime import datetime, date, timedelta
 from plyer import notification
+import ttkbootstrap as ttk
+from ttkbootstrap.constants import *
 
 DATA_FILE = "data.json"
 NOTIFICATION_LOG = "notifications.json"
+
+SUCCESS = "success"
+DANGER = "danger"
+INFO = "info"
+PRIMARY = "primary"
+SECONDARY = "secondary"
 
 def load_data():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
-    return {"Categorias": [], "Tareas": []}
+    return {"categories": [], "tasks": []}
 
 def save_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
@@ -37,97 +45,133 @@ def send_notification(title, message):
 def get_next_id(items):
     return max((item["id"] for item in items), default=0) + 1
 
-def get_Prioridad_label(Prioridad):
+def get_priority_label(priority):
     labels = {1: "Bajo", 2: "Medio", 3: "Alto"}
-    return labels.get(Prioridad, "Bajo")
+    return labels.get(priority, "Bajo")
 
 class TaskManagerApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Task Manager")
-        self.root.geometry("1100x600")
+        self.root.title("Gestor de Tareas")
+        self.root.geometry("1200x700")
+        self.root.minsize(900, 500)
         
         self.data = load_data()
         self.notification_log = load_notification_log()
-        self.toaster = None
         
+        self.setup_styles()
         self.setup_ui()
-        self.refresh_Categorias()
-        self.refresh_Tareas()
+        self.refresh_categories()
+        self.refresh_tasks()
         self.check_notifications()
         self.start_notification_check()
     
+    def setup_styles(self):
+        self.style = ttk.Style("cosmo")
+        
+        self.root.configure(bg="#f0f0f0")
+        
+        self.style.configure("Title.TLabel", font=("Helvetica", 14, "bold"), background="#f0f0f0")
+        self.style.configure("Card.TFrame", background="white")
+        self.style.configure("Treeview", rowheight=28, font=("Helvetica", 10))
+        self.style.configure("Treeview.Heading", font=("Helvetica", 10, "bold"))
+    
     def setup_ui(self):
-        main_paned = PanedWindow(self.root, orient=HORIZONTAL)
-        main_paned.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        main_container = Frame(self.root, bg="#f0f0f0")
+        main_container.pack(fill=BOTH, expand=True, padx=15, pady=15)
         
-        left_frame = Frame(main_paned, width=200)
-        main_paned.add(left_frame, minsize=200)
+        header_frame = Frame(main_container, bg="#2c3e50", height=60)
+        header_frame.pack(fill=X, pady=(0, 15))
+        header_frame.pack_propagate(False)
         
-        Label(left_frame, text="Categorias", font=("Arial", 12, "bold")).pack(pady=5)
+        title_label = Label(header_frame, text="Gestor de Tareas", font=("Helvetica", 20, "bold"), 
+                           bg="#2c3e50", fg="white")
+        title_label.pack(side=LEFT, padx=20)
         
-        self.category_listbox = Listbox(left_frame)
-        self.category_listbox.pack(fill=BOTH, expand=True, pady=5)
+        content_frame = Frame(main_container, bg="#f0f0f0")
+        content_frame.pack(fill=BOTH, expand=True)
+        
+        left_panel = Frame(content_frame, bg="white", relief=FLAT, borderwidth=1)
+        left_panel.pack(side=LEFT, fill=Y, padx=(0, 10), pady=0)
+        
+        cat_header = Frame(left_panel, bg="#3498db")
+        cat_header.pack(fill=X)
+        Label(cat_header, text="Categorías", font=("Helvetica", 12, "bold"), 
+              bg="#3498db", fg="white", pady=8).pack()
+        
+        self.category_listbox = Listbox(left_panel, font=("Helvetica", 11), 
+                                        selectbackground="#3498db", selectforeground="white",
+                                        borderwidth=0, highlightthickness=0,
+                                        bg="#f8f9fa")
+        self.category_listbox.pack(fill=BOTH, expand=True, padx=10, pady=10)
         self.category_listbox.bind("<<ListboxSelect>>", self.on_category_select)
         
-        cat_btn_frame = Frame(left_frame)
-        cat_btn_frame.pack(fill=X, pady=5)
+        cat_btn_frame = Frame(left_panel, bg="white")
+        cat_btn_frame.pack(fill=X, padx=10, pady=(0, 10))
         
-        Button(cat_btn_frame, text="Añadir", command=self.add_category).pack(side=LEFT, expand=True, padx=2)
-        Button(cat_btn_frame, text="Eliminar", command=self.delete_category).pack(side=LEFT, expand=True, padx=2)
+        ttk.Button(cat_btn_frame, text="Agregar", command=self.add_category, 
+                  bootstyle=SUCCESS, width=10).pack(side=LEFT, padx=2)
+        ttk.Button(cat_btn_frame, text="Eliminar", command=self.delete_category, 
+                  bootstyle=DANGER, width=10).pack(side=LEFT, padx=2)
         
-        right_frame = Frame(main_paned)
-        main_paned.add(right_frame)
+        right_panel = Frame(content_frame, bg="white", relief=FLAT, borderwidth=1)
+        right_panel.pack(side=LEFT, fill=BOTH, expand=True)
         
-        top_frame = Frame(right_frame)
-        top_frame.pack(fill=X, pady=5)
+        task_header = Frame(right_panel, bg="#2ecc71")
+        task_header.pack(fill=X)
         
-        Label(top_frame, text="Tareas", font=("Arial", 12, "bold")).pack(side=LEFT)
+        header_content = Frame(task_header, bg="#2ecc71")
+        header_content.pack(fill=X, padx=15, pady=8)
         
-        # opciones de filtro
-        self.filter_var = StringVar(value="Todas")
-        filter_menu = OptionMenu(top_frame, self.filter_var, "Todas", "Pendiente", "Completado", "Expirado", command=lambda _: self.refresh_Tareas())
-        filter_menu.pack(side=RIGHT)
+        Label(header_content, text="Tareas", font=("Helvetica", 12, "bold"), 
+              bg="#2ecc71", fg="white").pack(side=LEFT)
         
-        self.task_tree = ttk.Treeview(right_frame, columns=("Descripcion", "Prioridad", "Estado", "Creado", "Expira", "Categoria"), show="headings")
-        self.task_tree.heading("Descripcion", text="Descripcion")
-        self.task_tree.heading("Prioridad", text="Prioridad")
-        self.task_tree.heading("Estado", text="Estado")
-        self.task_tree.heading("Creado", text="Creado")
-        self.task_tree.heading("Expira", text="Expira")
-        self.task_tree.heading("Categoria", text="Categoria")
+        self.filter_var = StringVar(value="all")
+        filter_combo = ttk.Combobox(header_content, textvariable=self.filter_var, 
+                                    values=["Todas", "Pendientes", "Completadas", "Expiradas"],
+                                    state="readonly", width=12)
+        filter_combo.pack(side=RIGHT)
+        filter_combo.bind("<<ComboboxSelected>>", lambda e: self.refresh_tasks())
         
-        self.task_tree.column("Descripcion", width=200)
-        self.task_tree.column("Prioridad", width=70)
-        self.task_tree.column("Estado", width=80)
-        self.task_tree.column("Creado", width=100)
+        task_actions = Frame(right_panel, bg="white", pady=10)
+        task_actions.pack(fill=X, padx=15)
+        
+        ttk.Button(task_actions, text="Agregar Tarea", command=self.add_task, 
+                  bootstyle=PRIMARY).pack(side=LEFT, padx=2)
+        ttk.Button(task_actions, text="Cambiar Estado", command=self.toggle_task, 
+                  bootstyle=INFO).pack(side=LEFT, padx=2)
+        ttk.Button(task_actions, text="Eliminar", command=self.delete_task, 
+                  bootstyle=DANGER).pack(side=LEFT, padx=2)
+        
+        columns = ("Descripción", "Prioridad", "Estado", "Creada", "Expira", "Categoría")
+        self.task_tree = ttk.Treeview(right_panel, columns=columns, show="headings",
+                                       style="Custom.Treeview")
+        
+        for col in columns:
+            self.task_tree.heading(col, text=col)
+        
+        self.task_tree.column("Descripción", width=250)
+        self.task_tree.column("Prioridad", width=80)
+        self.task_tree.column("Estado", width=90)
+        self.task_tree.column("Creada", width=100)
         self.task_tree.column("Expira", width=100)
-        self.task_tree.column("Categoria", width=100)
+        self.task_tree.column("Categoría", width=100)
         
-        self.task_tree.pack(fill=BOTH, expand=True, pady=5)
+        self.task_tree.tag_configure("Expirada", foreground="#e74c3c", font=("Helvetica", 10, "bold"))
+        self.task_tree.tag_configure("Completada", foreground="#27ae60")
+        self.task_tree.tag_configure("Pendiente", foreground="#2c3e50")
+        
+        scrollbar = ttk.Scrollbar(right_panel, orient=VERTICAL, command=self.task_tree.yview)
+        self.task_tree.configure(yscrollcommand=scrollbar.set)
+        
+        self.task_tree.pack(fill=BOTH, expand=True, padx=15, pady=(0, 15))
+        scrollbar.pack(side=RIGHT, fill=Y, pady=(0, 15), padx=(0, 15))
+        
         self.task_tree.bind("<Double-Button-1>", self.on_task_double_click)
-        
-        style = ttk.Style()
-        style.configure("Treeview", rowheight=25)
-        style.configure("Treeview.Heading", font=("Arial", 10, "bold"))
-        style.configure("Expirado.Treeview", foreground="red")
-        style.configure("Completado.Treeview", foreground="green")
-        style.configure("Pendiente.Treeview", foreground="black")
-        
-        self.task_tree.tag_configure("Expirado", foreground="red")
-        self.task_tree.tag_configure("Completado", foreground="green")
-        self.task_tree.tag_configure("Pendiente", foreground="black")
-        
-        task_btn_frame = Frame(right_frame)
-        task_btn_frame.pack(fill=X, pady=5)
-        
-        Button(task_btn_frame, text="Añadir tarea", command=self.add_task).pack(side=LEFT, padx=2)
-        Button(task_btn_frame, text="Cambiar estado", command=self.toggle_task).pack(side=LEFT, padx=2)
-        Button(task_btn_frame, text="Eliminar tarea", command=self.delete_task).pack(side=LEFT, padx=2)
     
-    def refresh_Categorias(self):
+    def refresh_categories(self):
         self.category_listbox.delete(0, END)
-        for cat in self.data["Categorias"]:
+        for cat in self.data["categories"]:
             self.category_listbox.insert(END, cat["name"])
     
     def get_selected_category_id(self):
@@ -135,161 +179,179 @@ class TaskManagerApp:
         if not selection:
             return None
         index = selection[0]
-        return self.data["Categorias"][index]["id"]
+        return self.data["categories"][index]["id"]
     
     def on_category_select(self, event):
-        self.refresh_Tareas()
+        self.refresh_tasks()
     
     def get_task_status(self, task):
         today = date.today()
         
-        if task["Completado"]:
-            return "Completado"
+        if task["completed"]:
+            return "Completada"
         
-        if task.get("fecha_de_expiracion") and task.get("fecha_de_expiracion") != "No expira":
+        if task.get("expiry_date") and task.get("expiry_date") != "No expira":
             try:
-                expiry = datetime.strptime(task["fecha_de_expiracion"], "%Y-%m-%d").date()
+                expiry = datetime.strptime(task["expiry_date"], "%Y-%m-%d").date()
                 if expiry < today:
-                    return "Expirado"
+                    return "Expirada"
             except ValueError:
                 pass
         
         return "Pendiente"
     
-    def refresh_Tareas(self):
+    def refresh_tasks(self):
         for item in self.task_tree.get_children():
             self.task_tree.delete(item)
         
         selected_cat_id = self.get_selected_category_id()
-        filter_status = self.filter_var.get()
+        filter_status = self.filter_var.get().lower()
         
-        for task in self.data["Tareas"]:
+        for task in self.data["tasks"]:
             if selected_cat_id is not None and task["category_id"] != selected_cat_id:
                 continue
             
             task_status = self.get_task_status(task)
             
-            if filter_status == "Pendiente" and task_status != "Pendiente":
+            if filter_status == "pendientes" and task_status != "Pendiente":
                 continue
-            if filter_status == "Completado" and task_status != "Completado":
+            if filter_status == "completadas" and task_status != "Completada":
                 continue
-            if filter_status == "Expirado" and task_status != "Expirado":
+            if filter_status == "expiradas" and task_status != "Expirada":
                 continue
             
             cat_name = ""
-            for cat in self.data["Categorias"]:
+            for cat in self.data["categories"]:
                 if cat["id"] == task["category_id"]:
                     cat_name = cat["name"]
                     break
             
-            creado_date = task.get("creado_at", "")
-            Fecha_de_expiracion = task.get("fecha_de_expiracion", "")
-            Prioridad = task.get("Prioridad", 1)
-            Prioridad_label = get_Prioridad_label(Prioridad)
+            created_date = task.get("created_at", "")
+            expiry_date = task.get("expiry_date", "")
+            priority = task.get("priority", 1)
+            priority_label = get_priority_label(priority)
             
             tag = "Pendiente"
-            if task_status == "Completado":
-                tag = "Completado"
-            elif task_status == "Expirado":
-                tag = "Expirado"
+            if task_status == "Completada":
+                tag = "Completada"
+            elif task_status == "Expirada":
+                tag = "Expirada"
+            
+            self.task_tree.tag_configure("Expirada", foreground="#e74c3c", font=("Helvetica", 10, "bold"))
+            self.task_tree.tag_configure("Completada", foreground="#27ae60")
+            self.task_tree.tag_configure("Pendiente", foreground="#2c3e50")
             
             self.task_tree.insert("", END, values=(
-                task["Descripcion"],
-                Prioridad_label,
+                task["description"],
+                priority_label,
                 task_status,
-                creado_date,
-                Fecha_de_expiracion,
+                created_date,
+                expiry_date,
                 cat_name
             ), tags=(str(task["id"]), tag))
     
     def add_category(self):
         dialog = Toplevel(self.root)
-        dialog.title("Añadir Categoría")
-        dialog.geometry("400x100")
+        dialog.title("Agregar Categoría")
+        dialog.geometry("400x150")
         dialog.transient(self.root)
         dialog.grab_set()
+        dialog.resizable(False, False)
         
-        Label(dialog, text="Nombre de la categoría:").pack(pady=5)
-        entry = Entry(dialog)
-        entry.pack(pady=5, padx=20, fill=X)
+        main_frame = Frame(dialog, padx=20, pady=20)
+        main_frame.pack(fill=BOTH, expand=True)
         
-        def save():
+        Label(main_frame, text="Nombre de Categoría:", font=("Helvetica", 11)).pack(anchor=W, pady=(0, 5))
+        
+        entry = Entry(main_frame, font=("Helvetica", 11), relief=FLAT, bg="#f8f9fa")
+        entry.pack(fill=X, pady=(0, 15))
+        entry.focus()
+        
+        btn_frame = Frame(main_frame)
+        btn_frame.pack(fill=X)
+        
+        ttk.Button(btn_frame, text="Guardar", command=lambda: save_cat(), 
+                   bootstyle=SUCCESS).pack(side=RIGHT, padx=2)
+        ttk.Button(btn_frame, text="Cancelar", command=dialog.destroy, 
+                   bootstyle=SECONDARY).pack(side=RIGHT, padx=2)
+        
+        def save_cat():
             name = entry.get().strip()
             if not name:
-                messagebox.showwarning("Warning", "El nombre de la categoría no puede estar vacío")
+                messagebox.showwarning("Advertencia", "El nombre de la categoría no puede estar vacío")
                 return
             
-            new_cat = {"id": get_next_id(self.data["Categorias"]), "name": name}
-            self.data["Categorias"].append(new_cat)
+            new_cat = {"id": get_next_id(self.data["categories"]), "name": name}
+            self.data["categories"].append(new_cat)
             save_data(self.data)
-            self.refresh_Categorias()
+            self.refresh_categories()
             dialog.destroy()
         
-        Button(dialog, text="Guardar", command=save).pack(pady=5)
+        entry.bind("<Return>", lambda e: save_cat())
     
     def delete_category(self):
         selected = self.category_listbox.curselection()
         if not selected:
-            messagebox.showwarning("Warning", "Selecciona una categoría para eliminar")
+            messagebox.showwarning("Advertencia", "Selecciona una categoría para eliminar")
             return
         
         index = selected[0]
-        cat_id = self.data["Categorias"][index]["id"]
+        cat_id = self.data["categories"][index]["id"]
         
-        Tareas_using = [t for t in self.data["Tareas"] if t["category_id"] == cat_id]
-        if Tareas_using:
-            if not messagebox.askyesno("Confirm", f"Esta categoría tiene {len(Tareas_using)} task(s). Eliminar categoría también eliminará estas tareas. ¿Deseas continuar?"):
+        tasks_using = [t for t in self.data["tasks"] if t["category_id"] == cat_id]
+        if tasks_using:
+            if not messagebox.askyesno("Confirmar", 
+                f"Esta categoría tiene {len(tasks_using)} tarea(s). ¿Eliminar categoría y sus tareas?"):
                 return
         
-        self.data["Categorias"].pop(index)
-        self.data["Tareas"] = [t for t in self.data["Tareas"] if t["category_id"] != cat_id]
+        self.data["categories"].pop(index)
+        self.data["tasks"] = [t for t in self.data["tasks"] if t["category_id"] != cat_id]
         save_data(self.data)
-        self.refresh_Categorias()
-        self.refresh_Tareas()
+        self.refresh_categories()
+        self.refresh_tasks()
     
     def add_task(self):
-        if not self.data["Categorias"]:
-            messagebox.showwarning("Warning", "Crea una categoría primero")
+        if not self.data["categories"]:
+            messagebox.showwarning("Advertencia", "Crea una categoría primero")
             return
         
         dialog = Toplevel(self.root)
-        dialog.title("Añadir Tarea")
-        dialog.geometry("400x380")
+        dialog.title("Agregar Tarea")
+        dialog.geometry("420x420")
         dialog.transient(self.root)
         dialog.grab_set()
         
-        Label(dialog, text="Descripcion:").pack(pady=5)
-        desc_entry = Entry(dialog)
-        desc_entry.pack(pady=5, padx=20, fill=X)
+        main_frame = Frame(dialog, padx=25, pady=20)
+        main_frame.pack(fill=BOTH, expand=True)
         
-        Label(dialog, text="Prioridad:").pack(pady=5)
-        Prioridad_var = IntVar(value=2)
-        Prioridad_frame = Frame(dialog)
-        Prioridad_frame.pack(pady=5)
-        Radiobutton(Prioridad_frame, text="Baja (1)", variable=Prioridad_var, value=1).pack(side=LEFT, padx=10)
-        Radiobutton(Prioridad_frame, text="Media (2)", variable=Prioridad_var, value=2).pack(side=LEFT, padx=10)
-        Radiobutton(Prioridad_frame, text="Alta (3)", variable=Prioridad_var, value=3).pack(side=LEFT, padx=10)
+        Label(main_frame, text="Descripción:", font=("Helvetica", 11)).pack(anchor=W, pady=(0, 5))
+        desc_entry = Entry(main_frame, font=("Helvetica", 11), relief=FLAT, bg="#f8f9fa")
+        desc_entry.pack(fill=X, pady=(0, 15))
         
-        Label(dialog, text="Expira:").pack(pady=5)
+        Label(main_frame, text="Prioridad:", font=("Helvetica", 11)).pack(anchor=W, pady=(0, 5))
+        priority_var = IntVar(value=2)
+        priority_frame = Frame(main_frame)
+        priority_frame.pack(fill=X, pady=(0, 15))
+        
+        for val, label in [(1, "Bajo"), (2, "Medio"), (3, "Alto")]:
+            Radiobutton(priority_frame, text=label, variable=priority_var, value=val,
+                       font=("Helvetica", 10)).pack(side=LEFT, padx=15)
+        
+        Label(main_frame, text="Expira:", font=("Helvetica", 11)).pack(anchor=W, pady=(0, 5))
         expires_var = StringVar(value="yes")
-        expires_frame = Frame(dialog)
-        expires_frame.pack(pady=5)
-        Radiobutton(expires_frame, text="Sí", variable=expires_var, value="yes", command=lambda: toggle_date_entry()).pack(side=LEFT, padx=10)
-        Radiobutton(expires_frame, text="No", variable=expires_var, value="no", command=lambda: toggle_date_entry()).pack(side=LEFT, padx=10)
+        expires_frame = Frame(main_frame)
+        expires_frame.pack(fill=X, pady=(0, 10))
         
-        Label(dialog, text="Fecha de expiración (Año-Mes-Día):").pack(pady=5)
-        date_entry = Entry(dialog)
-        date_entry.pack(pady=5, padx=20, fill=X)
+        Radiobutton(expires_frame, text="Sí", variable=expires_var, value="yes",
+                   font=("Helvetica", 10), command=lambda: toggle_date()).pack(side=LEFT, padx=15)
+        Radiobutton(expires_frame, text="No", variable=expires_var, value="no",
+                   font=("Helvetica", 10), command=lambda: toggle_date()).pack(side=LEFT, padx=15)
         
-        Label(dialog, text="Categoria:").pack(pady=5)
-        cat_var = StringVar()
-        cat_combo = ttk.Combobox(dialog, textvariable=cat_var, state="readonly")
-        cat_combo["values"] = [c["name"] for c in self.data["Categorias"]]
-        cat_combo.pack(pady=5, padx=20, fill=X)
-        if self.data["Categorias"]:
-            cat_combo.current(0)
+        Label(main_frame, text="Fecha de expiración (AAAA-MM-DD):", font=("Helvetica", 11)).pack(anchor=W, pady=(0, 5))
+        date_entry = Entry(main_frame, font=("Helvetica", 11), relief=FLAT, bg="#f8f9fa")
+        date_entry.pack(fill=X, pady=(0, 15))
         
-        def toggle_date_entry():
+        def toggle_date():
             if expires_var.get() == "yes":
                 date_entry.config(state=NORMAL)
             else:
@@ -297,49 +359,62 @@ class TaskManagerApp:
                 date_entry.insert(0, "No expira")
                 date_entry.config(state=DISABLED)
         
-        toggle_date_entry()
+        toggle_date()
         
-        def save():
-            Descripcion = desc_entry.get().strip()
-            if not Descripcion:
-                messagebox.showwarning("Warning", "La descripción no puede estar vacía")
+        Label(main_frame, text="Categoría:", font=("Helvetica", 11)).pack(anchor=W, pady=(0, 5))
+        cat_var = StringVar()
+        cat_combo = ttk.Combobox(main_frame, textvariable=cat_var, state="readonly",
+                                  font=("Helvetica", 11))
+        cat_combo["values"] = [c["name"] for c in self.data["categories"]]
+        cat_combo.pack(fill=X, pady=(0, 20))
+        if self.data["categories"]:
+            cat_combo.current(0)
+        
+        def save_task():
+            description = desc_entry.get().strip()
+            if not description:
+                messagebox.showwarning("Advertencia", "La descripción no puede estar vacía")
                 return
             
             if expires_var.get() == "yes":
-                Fecha_de_expiracion = date_entry.get().strip()
-                if Fecha_de_expiracion and Fecha_de_expiracion != "No expira":
+                expiry_date = date_entry.get().strip()
+                if expiry_date and expiry_date != "No expira":
                     try:
-                        datetime.strptime(Fecha_de_expiracion, "%Y-%m-%d")
+                        datetime.strptime(expiry_date, "%Y-%m-%d")
                     except ValueError:
-                        messagebox.showwarning("Warning", "Formato de fecha inválido. Usa YYYY-MM-DD")
+                        messagebox.showwarning("Advertencia", "Formato de fecha inválido. Usa AAAA-MM-DD")
                         return
             else:
-                Fecha_de_expiracion = "No expira"
+                expiry_date = "No expira"
             
             category_name = cat_var.get()
             category_id = None
-            for cat in self.data["Categorias"]:
+            for cat in self.data["categories"]:
                 if cat["name"] == category_name:
                     category_id = cat["id"]
                     break
             
-            creado_at = date.today().strftime("%Y-%m-%d")
+            created_at = date.today().strftime("%Y-%m-%d")
             
             new_task = {
-                "id": get_next_id(self.data["Tareas"]),
-                "Descripcion": Descripcion,
-                "Completado": False,
-                "Prioridad": Prioridad_var.get(),
-                "creado_at": creado_at,
-                "fecha_de_expiracion": Fecha_de_expiracion,
+                "id": get_next_id(self.data["tasks"]),
+                "description": description,
+                "completed": False,
+                "priority": priority_var.get(),
+                "created_at": created_at,
+                "expiry_date": expiry_date,
                 "category_id": category_id
             }
-            self.data["Tareas"].append(new_task)
+            self.data["tasks"].append(new_task)
             save_data(self.data)
-            self.refresh_Tareas()
+            self.refresh_tasks()
             dialog.destroy()
         
-        Button(dialog, text="Guardar", command=save).pack(pady=10)
+        btn_frame = Frame(main_frame)
+        btn_frame.pack(fill=X)
+        
+        ttk.Button(btn_frame, text="Guardar", command=save_task, bootstyle=SUCCESS).pack(side=RIGHT, padx=2)
+        ttk.Button(btn_frame, text="Cancelar", command=dialog.destroy, bootstyle=SECONDARY).pack(side=RIGHT, padx=2)
     
     def on_task_double_click(self, event):
         selection = self.task_tree.selection()
@@ -349,161 +424,167 @@ class TaskManagerApp:
         item = selection[0]
         task_id = int(self.task_tree.item(item, "tags")[0])
         
-        task = next((t for t in self.data["Tareas"] if t["id"] == task_id), None)
+        task = next((t for t in self.data["tasks"] if t["id"] == task_id), None)
         if not task:
             return
         
         dialog = Toplevel(self.root)
         dialog.title("Edit Task")
-        dialog.geometry("400x380")
+        dialog.geometry("420x420")
         dialog.transient(self.root)
         dialog.grab_set()
         
-        Label(dialog, text="Descripción:").pack(pady=5)
-        desc_entry = Entry(dialog)
-        desc_entry.insert(0, task["Descripcion"])
-        desc_entry.pack(pady=5, padx=20, fill=X)
+        main_frame = Frame(dialog, padx=25, pady=20)
+        main_frame.pack(fill=BOTH, expand=True)
         
-        Label(dialog, text="Prioridad:").pack(pady=5)
-        Prioridad_var = IntVar(value=task.get("Prioridad", 1))
-        Prioridad_frame = Frame(dialog)
-        Prioridad_frame.pack(pady=5)
-        Radiobutton(Prioridad_frame, text="Baja (1)", variable=Prioridad_var, value=1).pack(side=LEFT, padx=10)
-        Radiobutton(Prioridad_frame, text="Media (2)", variable=Prioridad_var, value=2).pack(side=LEFT, padx=10)
-        Radiobutton(Prioridad_frame, text="Alta (3)", variable=Prioridad_var, value=3).pack(side=LEFT, padx=10)
+        Label(main_frame, text="Description:", font=("Helvetica", 11)).pack(anchor=W, pady=(0, 5))
+        desc_entry = Entry(main_frame, font=("Helvetica", 11), relief=FLAT, bg="#f8f9fa")
+        desc_entry.insert(0, task["description"])
+        desc_entry.pack(fill=X, pady=(0, 15))
         
-        current_expires = "yes" if task.get("fecha_de_expiracion") and task.get("fecha_de_expiracion") != "No expira" else "no"
-        Label(dialog, text="Expira:").pack(pady=5)
+        Label(main_frame, text="Priority:", font=("Helvetica", 11)).pack(anchor=W, pady=(0, 5))
+        priority_var = IntVar(value=task.get("priority", 1))
+        priority_frame = Frame(main_frame)
+        priority_frame.pack(fill=X, pady=(0, 15))
+        
+        for val, label in [(1, "Low"), (2, "Medium"), (3, "High")]:
+            Radiobutton(priority_frame, text=label, variable=priority_var, value=val,
+                       font=("Helvetica", 10)).pack(side=LEFT, padx=15)
+        
+        current_expires = "yes" if task.get("expiry_date") and task.get("expiry_date") != "No expires" else "no"
+        Label(main_frame, text="Expires:", font=("Helvetica", 11)).pack(anchor=W, pady=(0, 5))
         expires_var = StringVar(value=current_expires)
-        expires_frame = Frame(dialog)
-        expires_frame.pack(pady=5)
-        Radiobutton(expires_frame, text="Sí", variable=expires_var, value="yes", command=lambda: toggle_date_entry()).pack(side=LEFT, padx=10)
-        Radiobutton(expires_frame, text="No", variable=expires_var, value="no", command=lambda: toggle_date_entry()).pack(side=LEFT, padx=10)
+        expires_frame = Frame(main_frame)
+        expires_frame.pack(fill=X, pady=(0, 10))
         
-        Label(dialog, text="Fecha de expiración (Año-Mes-Día):").pack(pady=5)
-        date_entry = Entry(dialog)
+        Radiobutton(expires_frame, text="Yes", variable=expires_var, value="yes",
+                   font=("Helvetica", 10), command=lambda: toggle_date()).pack(side=LEFT, padx=15)
+        Radiobutton(expires_frame, text="No", variable=expires_var, value="no",
+                   font=("Helvetica", 10), command=lambda: toggle_date()).pack(side=LEFT, padx=15)
+        
+        Label(main_frame, text="Expiry Date (YYYY-MM-DD):", font=("Helvetica", 11)).pack(anchor=W, pady=(0, 5))
+        date_entry = Entry(main_frame, font=("Helvetica", 11), relief=FLAT, bg="#f8f9fa")
         if current_expires == "yes":
-            date_entry.insert(0, task.get("fecha_de_expiracion", ""))
+            date_entry.insert(0, task.get("expiry_date", ""))
         else:
-            date_entry.insert(0, "No expira")
+            date_entry.insert(0, "No expires")
             date_entry.config(state=DISABLED)
-        date_entry.pack(pady=5, padx=20, fill=X)
+        date_entry.pack(fill=X, pady=(0, 15))
         
-        Label(dialog, text="Categoria:").pack(pady=5)
-        cat_var = StringVar()
-        cat_combo = ttk.Combobox(dialog, textvariable=cat_var, state="readonly")
-        cat_combo["values"] = [c["name"] for c in self.data["Categorias"]]
-        cat_combo.pack(pady=5, padx=20, fill=X)
-        
-        for i, cat in enumerate(self.data["Categorias"]):
-            if cat["id"] == task["category_id"]:
-                cat_combo.current(i)
-                break
-        
-        def toggle_date_entry():
+        def toggle_date():
             if expires_var.get() == "yes":
                 date_entry.config(state=NORMAL)
             else:
                 date_entry.delete(0, END)
-                date_entry.insert(0, "No expira")
+                date_entry.insert(0, "No expires")
                 date_entry.config(state=DISABLED)
         
-        def save():
-            Descripcion = desc_entry.get().strip()
-            if not Descripcion:
-                messagebox.showwarning("Warning", "El campo de descripción no puede estar vacío")
+        Label(main_frame, text="Category:", font=("Helvetica", 11)).pack(anchor=W, pady=(0, 5))
+        cat_var = StringVar()
+        cat_combo = ttk.Combobox(main_frame, textvariable=cat_var, state="readonly",
+                                  font=("Helvetica", 11))
+        cat_combo["values"] = [c["name"] for c in self.data["categories"]]
+        cat_combo.pack(fill=X, pady=(0, 20))
+        
+        for i, cat in enumerate(self.data["categories"]):
+            if cat["id"] == task["category_id"]:
+                cat_combo.current(i)
+                break
+        
+        def save_task():
+            description = desc_entry.get().strip()
+            if not description:
+                messagebox.showwarning("Advertencia", "La descripción no puede estar vacía")
                 return
             
             if expires_var.get() == "yes":
-                Fecha_de_expiracion = date_entry.get().strip()
-                if Fecha_de_expiracion and Fecha_de_expiracion != "No expira":
+                expiry_date = date_entry.get().strip()
+                if expiry_date and expiry_date != "No expira":
                     try:
-                        datetime.strptime(Fecha_de_expiracion, "%Y-%m-%d")
+                        datetime.strptime(expiry_date, "%Y-%m-%d")
                     except ValueError:
-                        messagebox.showwarning("Warning", "Formato de fecha inválido. Usa Año-Mes-Día (YYYY-MM-DD)")
+                        messagebox.showwarning("Advertencia", "Formato de fecha inválido. Usa AAAA-MM-DD")
                         return
             else:
-                Fecha_de_expiracion = "No expira"
+                expiry_date = "No expira"
             
             category_name = cat_var.get()
             category_id = None
-            for cat in self.data["Categorias"]:
+            for cat in self.data["categories"]:
                 if cat["name"] == category_name:
                     category_id = cat["id"]
                     break
             
-            task["Descripcion"] = Descripcion
-            task["Prioridad"] = Prioridad_var.get()
-            task["fecha_de_expiracion"] = Fecha_de_expiracion
+            task["description"] = description
+            task["priority"] = priority_var.get()
+            task["expiry_date"] = expiry_date
             task["category_id"] = category_id
             
             save_data(self.data)
-            self.refresh_Tareas()
+            self.refresh_tasks()
             dialog.destroy()
-        
-        Button(dialog, text="Guardar", command=save).pack(pady=10)
     
     def toggle_task(self):
         selection = self.task_tree.selection()
         if not selection:
-            messagebox.showwarning("Warning", "Selecciona una tarea para cambiar su estado")
+            messagebox.showwarning("Advertencia", "Selecciona una tarea para cambiar su estado")
             return
         
         item = selection[0]
         task_id = int(self.task_tree.item(item, "tags")[0])
         
-        for task in self.data["Tareas"]:
+        for task in self.data["tasks"]:
             if task["id"] == task_id:
-                task["Completado"] = not task["Completado"]
+                task["completed"] = not task["completed"]
                 break
         
         save_data(self.data)
-        self.refresh_Tareas()
+        self.refresh_tasks()
     
     def delete_task(self):
         selection = self.task_tree.selection()
         if not selection:
-            messagebox.showwarning("Warning", "Selecciona una tarea para eliminar")
+            messagebox.showwarning("Advertencia", "Selecciona una tarea para eliminar")
             return
         
         item = selection[0]
         task_id = int(self.task_tree.item(item, "tags")[0])
         
-        self.data["Tareas"] = [t for t in self.data["Tareas"] if t["id"] != task_id]
+        self.data["tasks"] = [t for t in self.data["tasks"] if t["id"] != task_id]
         save_data(self.data)
-        self.refresh_Tareas()
+        self.refresh_tasks()
     
     def check_notifications(self):
         today = date.today()
         
-        for task in self.data["Tareas"]:
-            if task["Completado"]:
+        for task in self.data["tasks"]:
+            if task["completed"]:
                 continue
             
-            if not task.get("fecha_de_expiracion") or task.get("fecha_de_expiracion") == "No expira":
+            if not task.get("expiry_date") or task.get("expiry_date") == "No expira":
                 continue
             
             try:
-                expiry = datetime.strptime(task["fecha_de_expiracion"], "%Y-%m-%d").date()
+                expiry = datetime.strptime(task["expiry_date"], "%Y-%m-%d").date()
             except ValueError:
                 continue
             
             task_id = str(task["id"])
             days_until_expiry = (expiry - today).days
             
-            if task.get("Prioridad") == 2:
+            if task.get("priority") == 2:
                 if days_until_expiry == 2:
-                    key = f"{task_id}_Medio_2days"
+                    key = f"{task_id}_medium_2days"
                     if key not in self.notification_log:
-                        send_notification("Recordatorio", f"Tienes dos días para terminar la actividad: {task['Descripcion']}")
+                        send_notification("Recordatorio", f"Tienes dos días para terminar la actividad: {task['description']}")
                         self.notification_log[key] = True
                         save_notification_log(self.notification_log)
             
-            elif task.get("Prioridad") == 3:
+            elif task.get("priority") == 3:
                 if 1 <= days_until_expiry <= 5:
-                    key = f"{task_id}_Alto_{days_until_expiry}days"
+                    key = f"{task_id}_high_{days_until_expiry}days"
                     if key not in self.notification_log:
-                        send_notification("Importante", f"La tarea: {task['Descripcion']} es importante, tienes hasta el día {task['Fecha_de_expiracion']}")
+                        send_notification("Importante", f"La tarea: {task['description']} es importante, tienes hasta el día {task['expiry_date']}")
                         self.notification_log[key] = True
                         save_notification_log(self.notification_log)
     
